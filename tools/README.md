@@ -116,6 +116,29 @@ findings worth preserving.
   resolved the actual topmost one (`'Dungeon (DEBUG)'`) instead of an
   overlapping Finder window.
 
+  **Quit**: as an `LSUIElement` app it has no Dock icon and no app menu,
+  so clicking the status item shows a dropdown with a real "Quit
+  G4Recorder" item (`[NSApp terminate:nil]` via a small `NSMenuTarget`
+  class) — without this there'd be no in-UI way to quit at all.
+
+- **`G4Recorder-Info.plist`** — real bundle plist for issue #7's packaging.
+  `CFBundleIconFile` is `G4Recorder` (no `.icns` extension — the known
+  Tiger `Info.plist`-parsing gotcha, see
+  [[project_godot_ppc_tiger_release_packaging]]).
+
+- **`make_icon.py`** / **`G4Recorder_icon_512.png`** / **`G4Recorder.icns`**
+  — the app icon. Tiger has no PIL/ImageMagick/network install path
+  available for icon authoring, so `make_icon.py` hand-draws a simple
+  512x512 RGBA PNG (red "record" dot + ring on a dark rounded square)
+  using only Python's stdlib (`struct`+`zlib`, writes real PNG chunks
+  directly — no external deps). Real finding: Tiger's own `sips` does
+  **not** support `-s format icns` output (`Error: Unsupported output
+  format com.apple.icns`) despite supporting it on later macOS — converted
+  instead via Tigerbrew's `makeicns` formula (`brew install makeicns`),
+  which produced a `.icns` Finder actually renders correctly on this OS
+  (confirmed live, both in `/Volumes/Work/...` and after installing to
+  `/Applications`).
+
 - **`ax_dump_windows.c`** / **`ax_dump_pid.c`** — debug tools built while
   root-causing the bug above. Real, useful finding from these: AX window
   queries (`AXUIElementCopyAttributeValue` for `kAXWindowsAttribute`) fail

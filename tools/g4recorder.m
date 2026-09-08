@@ -307,6 +307,18 @@ static OSStatus hotkey_handler(EventHandlerCallRef nextHandler, EventRef theEven
     return noErr;
 }
 
+@interface G4RecorderMenuTarget : NSObject
+- (void)quit:(id)sender;
+@end
+
+@implementation G4RecorderMenuTarget
+- (void)quit:(id)sender {
+    printf("menu: Quit selected\n");
+    fflush(stdout);
+    [NSApp terminate:nil];
+}
+@end
+
 int main(void) {
     freopen(LOG_PATH, "w", stdout);
     freopen(LOG_PATH, "a", stderr);
@@ -322,6 +334,18 @@ int main(void) {
     gStatusItem = [[bar statusItemWithLength:NSVariableStatusItemLength] retain];
     [gStatusItem setTitle:@"[idle]"];
     [gStatusItem setHighlightMode:YES];
+
+    /* LSUIElement apps have no Dock icon and no app menu, so without this
+     * there is literally no in-UI way to quit -- clicking the status item
+     * now shows a dropdown with a real Quit item. */
+    G4RecorderMenuTarget *menuTarget = [[G4RecorderMenuTarget alloc] init];
+    NSMenu *statusMenu = [[NSMenu alloc] init];
+    NSMenuItem *quitItem = [[NSMenuItem alloc] initWithTitle:@"Quit G4Recorder"
+                                                        action:@selector(quit:)
+                                                 keyEquivalent:@""];
+    [quitItem setTarget:menuTarget];
+    [statusMenu addItem:quitItem];
+    [gStatusItem setMenu:statusMenu];
 
     Boolean trusted = AXAPIEnabled();
     printf("AXAPIEnabled() = %d\n", trusted);

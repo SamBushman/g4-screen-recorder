@@ -4,6 +4,8 @@
 <dict>
 	<key>CFBundleExecutable</key>
 	<string>G4Recorder</string>
+	<key>CFBundleIconFile</key>
+	<string>G4Recorder</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.samuelbushman.g4-screen-recorder.g4recorder</string>
 	<key>CFBundleName</key>
