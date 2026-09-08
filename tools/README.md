@@ -76,4 +76,53 @@ findings worth preserving.
   seconds), not an assumed 30 — issues #2/#4 already established real
   achieved capture fps varies with window size and is often well under 30;
   passing the wrong value produces a valid-looking .mp4 that plays back at
-  the wrong real-world speed.
+  the wrong real-world speed. Also crops to even width/height (libx264/
+  yuv420p requires both even -- real window sizes aren't guaranteed even,
+  hit this live with a real 1280x927 Godot window).
+
+- **`g4recorder.m`** — the real integrated tool (issues #6/#7's actual
+  product, not another isolated PoC): a menu-bar app combining click-to-
+  select, global hotkey start/stop, background-thread capture-to-disk, and
+  auto-triggered offline encode into one continuous flow. See the file's
+  own header comment for the full flow and `G4Recorder-Info.plist` for the
+  bundle Info.plist. Build:
+  ```
+  gcc-7 -std=gnu99 -isysroot /Developer/SDKs/MacOSX10.4u.sdk -mmacosx-version-min=10.4 \
+    -framework Cocoa -framework Carbon -framework ApplicationServices -lpthread \
+    -o g4recorder g4recorder.m
+  ```
+  **Real bug found and fixed here (2026-09-08):** the original click-to-
+  window resolution (carried over from issue #2's PoC) enumerated every
+  window of every running app and matched the first one whose AX-reported
+  rect geometrically contained the click point — with no regard for real
+  on-screen stacking order. When more than one window's bounds overlap the
+  same point (common — e.g. a Finder window sitting behind a Godot debug
+  window in roughly the same screen region), this can match the WRONG
+  window entirely. Live symptom: a real recording showed a completely
+  different window's real content than the one whose title got logged as
+  the "match" — looked at first like a coordinate/cropping bug (reported
+  as "capturing area above the window, cutting off the bottom, not full
+  width") but was actually just the wrong window's real, correctly-cropped
+  bounds. Root-caused by comparing a screenshot taken at the exact instant
+  of a match against the logged position/size (see `resolve_window_at_point()`'s
+  own comment in `g4recorder.m` for the full writeup). **Real fix:**
+  `AXUIElementCopyElementAtPosition` against the systemwide element (a real
+  z-order-aware accessibility hit test, confirmed present in the Tiger
+  10.4u SDK), walking up to the owning window via
+  `kAXTopLevelUIElementAttribute` — this also eliminated the need for
+  Carbon Process Manager's `GetNextProcess` app enumeration entirely
+  (`AXUIElementGetPid` gets the pid directly from the resolved window).
+  Verified live: re-tested against real, live Godot windows and correctly
+  resolved the actual topmost one (`'Dungeon (DEBUG)'`) instead of an
+  overlapping Finder window.
+
+- **`ax_dump_windows.c`** / **`ax_dump_pid.c`** — debug tools built while
+  root-causing the bug above. Real, useful finding from these: AX window
+  queries (`AXUIElementCopyAttributeValue` for `kAXWindowsAttribute`) fail
+  with `kAXErrorCannotComplete` (-25204) when run from an SSH-launched
+  process with no real GUI session — even with `AXAPIEnabled()` reporting
+  true — the same underlying GUI-session limitation documented for Carbon
+  Process Manager elsewhere in this project, just failing differently
+  (silently wrong data / an explicit error, not a crash or hang). Confirms
+  AX-based diagnostics of this kind need a real physically-launched `.app`,
+  same as every other AX-dependent tool here.

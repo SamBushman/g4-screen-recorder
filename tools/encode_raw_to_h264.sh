@@ -44,9 +44,15 @@ OUT="$5"
 
 FFMPEG=/usr/local/bin/ffmpeg
 
+# libx264/yuv420p requires even width+height. Real window sizes aren't
+# guaranteed even (hit this live: a real 1280x927 Godot window failed to
+# encode with "height not divisible by 2" before this crop was added) --
+# crop 1px off the odd edge rather than pad, to avoid synthetic border
+# pixels.
 START=$(date +%s)
 "$FFMPEG" -y -f rawvideo -pixel_format argb -video_size "${W}x${H}" -framerate "$FPS" \
     -i "$RAW" \
+    -vf "crop=trunc(iw/2)*2:trunc(ih/2)*2" \
     -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p \
     -movflags +faststart \
     "$OUT"
