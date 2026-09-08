@@ -1,0 +1,31 @@
+# tools/
+
+Standalone proof-of-concept programs, kept as real reference code (not
+throwaway) since each one resolved a genuine open question with real
+findings worth preserving.
+
+- **`window_select_capture_poc.c`** — issue #2's PoC: click-to-select a
+  window (Quartz event tap + Accessibility API window enumeration) and
+  capture a real frame from it (direct framebuffer read, since
+  `CGWindowListCreateImage` doesn't exist on Tiger). See the file's own
+  header comment for the full set of real findings (AXAPIEnabled()
+  flakiness, synthetic-vs-real click visibility, measured capture
+  throughput and why it's bandwidth-capped). Build:
+  ```
+  gcc-7 -isysroot /Developer/SDKs/MacOSX10.4u.sdk -mmacosx-version-min=10.4 \
+    -framework ApplicationServices -framework Carbon \
+    -o window_select_capture_poc window_select_capture_poc.c
+  ```
+  Must be run as a real double-clicked `.app` (see
+  `WindowSelectTest-Info.plist` for a minimal bundle `Info.plist` — set
+  `CFBundleExecutable` to the compiled binary's name and drop both into a
+  `WindowSelectTest.app/Contents/{MacOS,}` layout), not launched via SSH —
+  see the file's own comment for why. Logs to `/tmp/window_select_test.log`
+  so results can still be read back over SSH after a physical launch.
+
+- **`synthclick.c`** — minimal synthetic-mouse-click injector
+  (`CGEventCreateMouseEvent`/`CGEventPost`), built while debugging the
+  Universal Access checkbox during issue #2. Confirmed real synthetic
+  clicks are NOT seen by a listen-only `CGEventTap` on this OS (see the
+  PoC's own header comment) — kept as a reference utility, not because it
+  solved that specific problem.
