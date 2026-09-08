@@ -47,3 +47,33 @@ findings worth preserving.
   ```
   Same real-`.app`-launch requirement as the other PoCs here (see
   `MenuBarHotkeyTest-Info.plist`). Logs to `/tmp/menubar_hotkey_test.log`.
+
+- **`raw_capture_cli.c`** — command-line-only variant of the capture half
+  of `window_select_capture_poc.c`: captures a fixed screen rect
+  (`x y w h seconds output.raw`) via the same `CGDisplayBaseAddress`
+  technique, with no AX API / window click / Process Manager dependency.
+  Confirmed this runs fine over plain SSH (unlike the AX-dependent PoCs
+  above) since it never touches Carbon Process Manager or registers as a
+  GUI app — useful for scripted testing (e.g. issue #5's encode pipeline)
+  without needing a physical double-click + click. Writes the same
+  headerless raw frame format as the other PoCs: a stream of `w*h*4`-byte
+  frames, per-pixel byte order `[pad/alpha, R, G, B]`. Build:
+  ```
+  gcc-7 -isysroot /Developer/SDKs/MacOSX10.4u.sdk -mmacosx-version-min=10.4 \
+    -framework ApplicationServices \
+    -o raw_capture_cli raw_capture_cli.c
+  ```
+
+- **`encode_raw_to_h264.sh`** — issue #5's offline encode pass: takes a raw
+  frame file in the format above (`input.raw width height fps output.mp4`)
+  and encodes it via ffmpeg's `libx264` encoder. Confirmed this really is
+  the same AltiVec x264 build verified in issue #1, not a separate copy
+  (same `libx264.146.dylib`, same Tigerbrew `r2555` Cellar path, same real
+  AltiVec instructions via `otool -tv`) — and confirmed live at runtime via
+  ffmpeg's own `using cpu capabilities: Altivec` log line during a real
+  encode, not just static disassembly. **The `fps` argument must be the
+  real measured capture fps** (frames actually captured / real elapsed
+  seconds), not an assumed 30 — issues #2/#4 already established real
+  achieved capture fps varies with window size and is often well under 30;
+  passing the wrong value produces a valid-looking .mp4 that plays back at
+  the wrong real-world speed.
