@@ -88,9 +88,51 @@ findings worth preserving.
   bundle Info.plist. Build:
   ```
   gcc-7 -std=gnu99 -isysroot /Developer/SDKs/MacOSX10.4u.sdk -mmacosx-version-min=10.4 \
-    -framework Cocoa -framework Carbon -framework ApplicationServices -lpthread \
+    -framework Cocoa -framework Carbon -framework ApplicationServices -framework CoreVideo -lpthread \
     -o g4recorder g4recorder.m
   ```
+  **Two user-configurable capture modes added (2026-09-08)**, both off by
+  default (identical to the original always-on-at-full-speed behavior
+  unless a user opts in via the status-bar menu), to work around the real,
+  measured, bandwidth-bound bottleneck this file's own header and
+  `window_select_capture_poc.c`'s header both document (real VRAM reads
+  run ~16x slower than an identical-size RAM copy on this hardware, cost
+  roughly linear in pixel count, AltiVec doesn't help since it's a bus
+  limit, not a compute one):
+  - **Interlaced Capture** (status menu checkbox): each frame after the
+    first only re-reads half the scanlines from VRAM (alternating which
+    half every capture, "weaving" the untouched half from the previous
+    capture) — halves the real per-capture VRAM-read volume, which should
+    roughly double the achievable capture rate at a given window size.
+    Every frame written to disk is still a full-size image, so the
+    existing rawvideo encode step needs no changes — the real trade-off is
+    combing artifacts on vertical motion between the two fields, the same
+    visual characteristic classic broadcast-TV interlacing always had.
+  - **Sync to Display Refresh** (status menu submenu: Unsynced/1/1/1/2/1/3/
+    1/4): ties each capture to the display's real vertical refresh via
+    `CVDisplayLink` (added in Tiger for QuickTime/Core Video, not a later-
+    OS API), optionally only every Nth tick, instead of the original
+    free-running tight loop reading VRAM at moments uncorrelated with the
+    display's own scanout — the condition that produces visible tearing (a
+    capture landing mid-buffer-swap). Best-effort, not a guarantee: no
+    hardware genlock between the capture read and the GPU's own swap, just
+    a much better-timed guess at when one has just settled. Implemented
+    with a plain `pthread_mutex_t`/`pthread_cond_t` gate the
+    `CVDisplayLink` callback signals, not GCD dispatch semaphores (a Snow
+    Leopard/10.6+ addition, unavailable here) and not POSIX `sem_init()`
+    (Darwin's unnamed-semaphore support has a real history of being
+    unreliable) — and the timeout inside that wait is built from
+    `gettimeofday()`, not `clock_gettime()` (Apple didn't add that until
+    Sierra/10.12).
+
+  Both toggles are independent and persisted via `NSUserDefaults` so a
+  choice survives across relaunches. **Not yet verified on real G4/RV250
+  hardware** — `CVDisplayLinkCreateWithActiveCGDisplays`/
+  `CVDisplayLinkSetOutputCallback` compiling and linking correctly against
+  this exact Tiger 10.4u SDK/CoreVideo.framework combination, and the
+  interlaced/sync-divisor capture actually behaving as designed, both need
+  a real build+test pass before this is considered done, not just written.
+
   **Real bug found and fixed here (2026-09-08):** the original click-to-
   window resolution (carried over from issue #2's PoC) enumerated every
   window of every running app and matched the first one whose AX-reported
