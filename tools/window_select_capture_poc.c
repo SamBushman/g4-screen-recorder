@@ -65,6 +65,23 @@
  *    (or equivalent area) window should sustain a real 30fps; meaningfully
  *    larger windows won't, and that's a real, physical constraint of this
  *    capture technique on this hardware, not a bug to keep chasing.
+ * 5. Issue #4 (frame buffering strategy): this same program's own capture
+ *    handler also runs a real integrated ~90-second capture+disk-write
+ *    test (not just the isolated benchmarks above) once a window is
+ *    selected -- writes raw frames straight to /tmp/capture_buffer_test.raw
+ *    as they're captured. Confirmed live on a real 1047x680 browser
+ *    window: 694 frames in 90.01s = 7.7fps, 1884.8MB written, no crash, no
+ *    OOM -- consistent with #2's own area-based bandwidth model (predicts
+ *    ~10.8fps capture-only at this size; the real combined number is a
+ *    bit lower once real disk-write time is added in). A separate `dd`
+ *    test measured real sustained disk write throughput at ~87MB/s, far
+ *    above what capture alone can even produce (this integrated test's
+ *    own ~21MB/s average) -- confirms disk write is NOT the bottleneck,
+ *    same conclusion as #2's own capture-side finding. This is also why
+ *    a RAM ring buffer was ruled out instead of disk: this machine only
+ *    has 2GB total RAM, nowhere near enough for more than a few seconds
+ *    of raw frames at any real window size, while 231GB of free disk and
+ *    87MB/s real write throughput comfortably covers a full short clip.
  *
  * Must be launched as a real double-clicked .app, not via SSH -- Carbon
  * Process Manager's GetNextProcess() needs a real GUI-session Mach
@@ -169,32 +186,46 @@ static CGEventRef tap_callback(CGEventTapProxy proxy, CGEventType type, CGEventR
                             fflush(stdout);
                         }
 
-                        /* Throughput benchmark: real repeated raw-rect
-                         * copies out of the live framebuffer (the actual
-                         * per-frame cost a real capture loop pays), for
-                         * ~3 real seconds, reporting achieved fps -- issue
-                         * #2's own "measure on real hardware, don't
-                         * assume" success criterion. */
+                        /* Issue #4 real integrated test: capture AND
+                         * sequentially write raw frames straight to disk
+                         * for a real ~90 seconds -- not just the separate
+                         * capture-only (issue #2) and disk-write-only (dd)
+                         * benchmarks, a real combined measurement, since
+                         * disk buffering was the real chosen design
+                         * (2GB total RAM can't hold more than a few
+                         * seconds of raw frames at any real window size;
+                         * 231GB free disk and a real measured 87MB/s dd
+                         * write throughput comfortably covers it instead).
+                         * No compression, no encoding here -- that's
+                         * issue #5's own deliberately-separate offline
+                         * pass. */
                         size_t frameBytes = (size_t)w * (size_t)h * 4;
                         uint8_t *scratch = (uint8_t *)malloc(frameBytes);
-                        if (scratch) {
+                        FILE *raw = fopen("/tmp/capture_buffer_test.raw", "wb");
+                        if (scratch && raw) {
                             struct timeval t0, t1;
                             gettimeofday(&t0, NULL);
                             long frames = 0;
                             double elapsed = 0;
-                            while (elapsed < 3.0) {
+                            while (elapsed < 90.0) {
                                 for (int y = 0; y < h; y++) {
                                     uint8_t *row = (uint8_t *)base + (size_t)(oy + y) * bytesPerRow + (size_t)ox * 4;
                                     memcpy(scratch + (size_t)y * w * 4, row, (size_t)w * 4);
                                 }
+                                fwrite(scratch, 1, frameBytes, raw);
                                 frames++;
                                 gettimeofday(&t1, NULL);
                                 elapsed = (t1.tv_sec - t0.tv_sec) + (t1.tv_usec - t0.tv_usec) / 1000000.0;
                             }
-                            printf("  benchmark: %ld raw-copy frames in %.2fs = %.1f fps (%dx%d, %zu bytes/frame)\n",
-                                   frames, elapsed, frames / elapsed, w, h, frameBytes);
+                            fclose(raw);
+                            printf("  issue #4 integrated test: %ld capture+write frames in %.2fs = %.1f fps (%dx%d, %zu bytes/frame, %.1f MB total)\n",
+                                   frames, elapsed, frames / elapsed, w, h, frameBytes, (frames * (double)frameBytes) / (1024.0 * 1024.0));
                             fflush(stdout);
                             free(scratch);
+                        } else {
+                            if (raw) fclose(raw);
+                            printf("  issue #4 test: failed to allocate scratch buffer or open output file\n");
+                            fflush(stdout);
                         }
                     }
                 }

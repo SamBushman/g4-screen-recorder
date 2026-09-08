@@ -4,13 +4,16 @@ Standalone proof-of-concept programs, kept as real reference code (not
 throwaway) since each one resolved a genuine open question with real
 findings worth preserving.
 
-- **`window_select_capture_poc.c`** — issue #2's PoC: click-to-select a
-  window (Quartz event tap + Accessibility API window enumeration) and
-  capture a real frame from it (direct framebuffer read, since
-  `CGWindowListCreateImage` doesn't exist on Tiger). See the file's own
-  header comment for the full set of real findings (AXAPIEnabled()
-  flakiness, synthetic-vs-real click visibility, measured capture
-  throughput and why it's bandwidth-capped). Build:
+- **`window_select_capture_poc.c`** — issue #2 (and #4)'s PoC: click-to-
+  select a window (Quartz event tap + Accessibility API window
+  enumeration) and capture a real frame from it (direct framebuffer read,
+  since `CGWindowListCreateImage` doesn't exist on Tiger); also runs a
+  real ~90-second integrated capture+disk-write test once a window is
+  selected (issue #4). See the file's own header comment for the full set
+  of real findings (`AXAPIEnabled()` flakiness, synthetic-vs-real click
+  visibility, measured capture throughput and why it's bandwidth-capped,
+  real disk-buffering throughput vs. why RAM buffering was ruled out).
+  Build:
   ```
   gcc-7 -isysroot /Developer/SDKs/MacOSX10.4u.sdk -mmacosx-version-min=10.4 \
     -framework ApplicationServices -framework Carbon \
