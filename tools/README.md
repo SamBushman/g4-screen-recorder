@@ -29,3 +29,18 @@ findings worth preserving.
   clicks are NOT seen by a listen-only `CGEventTap` on this OS (see the
   PoC's own header comment) — kept as a reference utility, not because it
   solved that specific problem.
+
+- **`menubar_hotkey_poc.m`** — issue #3's PoC: a real background/menu-bar-
+  only app (`LSUIElement`, no Dock icon) with a live `NSStatusItem` and two
+  real global hotkeys (`RegisterEventHotKey`) that fire while a different
+  app has keyboard focus. See the file's own header comment for a real,
+  worth-remembering finding: F-key hotkeys (F1/F2) registered without error
+  but never actually fired on this desktop G4 — switched to ordinary
+  alphanumeric keys (Cmd+Opt+Shift+9/0), which worked reliably. Build:
+  ```
+  gcc-7 -isysroot /Developer/SDKs/MacOSX10.4u.sdk -mmacosx-version-min=10.4 \
+    -framework Cocoa -framework Carbon \
+    -o menubar_hotkey_poc menubar_hotkey_poc.m
+  ```
+  Same real-`.app`-launch requirement as the other PoCs here (see
+  `MenuBarHotkeyTest-Info.plist`). Logs to `/tmp/menubar_hotkey_test.log`.
